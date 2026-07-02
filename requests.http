@@ -1,0 +1,86 @@
+### List all cars (a demo fleet is seeded on startup)
+GET http://localhost:8080/api/cars
+
+### List cars available right now
+GET http://localhost:8080/api/cars/available
+
+### Add a car (captures carId for the calls below)
+POST http://localhost:8080/api/cars
+Content-Type: application/json
+
+{ "make": "Audi", "model": "A4", "year": 2023, "pricePerHour": 11.00 }
+
+> {% client.global.set("carId", response.body.id); %}
+
+### Reserve the car from now for 2 hours (captures reservationId for rent/return below)
+< {%
+    const start = Date.now() + 1000;
+    request.variables.set("start", new Date(start).toISOString());
+    request.variables.set("end", new Date(start + 2 * 60 * 60 * 1000).toISOString());
+%}
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+X-User-Id: alice
+
+{ "carId": "{{carId}}", "start": "{{start}}", "end": "{{end}}" }
+
+> {% client.global.set("reservationId", response.body.id); %}
+
+### Overlapping reservation on the same car -> 409 Conflict
+< {%
+    const start = Date.now() + 30 * 60 * 1000;
+    request.variables.set("start", new Date(start).toISOString());
+    request.variables.set("end", new Date(start + 2 * 60 * 60 * 1000).toISOString());
+%}
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+X-User-Id: bob
+
+{ "carId": "{{carId}}", "start": "{{start}}", "end": "{{end}}" }
+
+### Invalid window (end before start) -> 422
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+X-User-Id: alice
+
+{ "carId": "{{carId}}", "start": "2030-01-01T14:00:00Z", "end": "2030-01-01T10:00:00Z" }
+
+### Reserve a future window on the same car (captures futureReservationId)
+POST http://localhost:8080/api/reservations
+Content-Type: application/json
+X-User-Id: alice
+
+{ "carId": "{{carId}}", "start": "2030-01-01T10:00:00Z", "end": "2030-01-01T14:00:00Z" }
+
+> {% client.global.set("futureReservationId", response.body.id); %}
+
+### Reschedule it, overlapping its own current window -> 200 (its own slot does not conflict)
+PATCH http://localhost:8080/api/reservations/{{futureReservationId}}
+Content-Type: application/json
+X-User-Id: alice
+
+{ "start": "2030-01-01T12:00:00Z", "end": "2030-01-01T16:00:00Z" }
+
+### Rent the reservation made above (pre-request waits for its window to open) -> returns the price
+< {%
+    const windowOpens = Date.now() + 1200;
+    while (Date.now() < windowOpens) {}
+%}
+POST http://localhost:8080/api/reservations/{{reservationId}}/rent
+X-User-Id: alice
+
+### Return the car
+POST http://localhost:8080/api/reservations/{{reservationId}}/return
+X-User-Id: alice
+
+### List my reservations
+GET http://localhost:8080/api/reservations
+X-User-Id: alice
+
+### Get one reservation (owner only)
+GET http://localhost:8080/api/reservations/{{reservationId}}
+X-User-Id: alice
+
+### Cancel the future reservation (works on a RESERVED booking)
+POST http://localhost:8080/api/reservations/{{futureReservationId}}/cancel
+X-User-Id: alice
