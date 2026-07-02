@@ -1,0 +1,22 @@
+style:
+  MaxLineLength:
+    maxLineLength: 150
+  MagicNumber:
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    excludes: ['**/test/**', '**/config/**']
+  ThrowsCount:
+    max: 4
+  UtilityClassWithPublicConstructor:
+    active: false
+
+complexity:
+  LongParameterList:
+    ignoreDefaultParameters: true
+    excludes: ['**/web/dto/**']
+  TooManyFunctions:
+    thresholdInClasses: 15
+
+performance:
+  SpreadOperator:
+    active: false
